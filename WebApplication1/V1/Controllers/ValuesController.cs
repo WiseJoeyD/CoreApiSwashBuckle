@@ -10,7 +10,7 @@ namespace WebApplication1.V1.Controllers
     /// Basic Values Controller - v0.1-1.0
     /// </summary>
     [ApiController]
-    [ApiVersion("1.0", Deprecated = true)]
+    [ApiVersion("1", Deprecated = true)]
     [Route("api/v{version:apiVersion}/[controller]")]
     public class ValuesController : ControllerBase
     {

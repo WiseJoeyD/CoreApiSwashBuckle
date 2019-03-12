@@ -11,10 +11,12 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using WebApplication1.V2.Models;
-using NJsonSchema;
-using NSwag.AspNetCore;
 using Microsoft.AspNetCore.Mvc.ApiExplorer;
 using Microsoft.AspNetCore.Mvc.Versioning;
+using Swashbuckle.AspNetCore.SwaggerGen;
+using System.IO;
+using System.Reflection;
+using Microsoft.Extensions.PlatformAbstractions;
 
 namespace WebApplication1
 {
@@ -63,7 +65,7 @@ namespace WebApplication1
                 {
                     // add the versioned api explorer, which also adds IApiVersionDescriptionProvider service
                     // note: the specified format code will format the version as "'v'major[.minor][-status]"
-                    options.GroupNameFormat = "VVVV";
+                    options.GroupNameFormat = "VVV";
 
                     // note: this option is only necessary when versioning by url segment. the SubstitutionFormat
                     // can also be used to control the format of the API version in route templates
@@ -72,30 +74,16 @@ namespace WebApplication1
 
             #endregion
 
-            services.AddSwaggerDocument(document =>
-            //{
-            //    document.PostProcess = d => d.Info.Title = "Hello world!";
-            //});
+            services.AddTransient<IConfigureOptions<SwaggerGenOptions>, ConfigureSwaggerOptions>();
+            services.AddSwaggerGen(
+                options =>
                 {
-                    document.DocumentName = "v1.0";
-                    document.ApiGroupNames = new[] { "1.0" };
-                    document.Version = "1.0";
-                    document.PostProcess = d => d.Info.Title = "Hello world!";
-                })
-                .AddSwaggerDocument(document =>
-                {
-                    document.DocumentName = "v2.0";
-                    document.ApiGroupNames = new[] { "2.0" };
-                    document.Version = "2.0";
-                    document.PostProcess = d => d.Info.Title = "Bye world!";
-                })
-                //.AddSwaggerDocument(document =>
-                //{
-                //    document.DocumentName = "v3.0";
-                //    document.ApiGroupNames = new[] { "3.0" };
-                //    document.PostProcess = d => d.Info.Title = "LOL!";
-                //})
-                ;
+                    // add a custom operation filter which sets default values
+                    options.OperationFilter<SwaggerDefaultValues>();
+
+                    // integrate xml comments
+                    options.IncludeXmlComments(XmlCommentsFilePath);
+                });
         }
 
         /// <summary>
@@ -115,12 +103,27 @@ namespace WebApplication1
             app.UseMvc();
 
             app.UseSwagger();
-            app.UseSwaggerUi3( config =>
-            {
-                config.SwaggerRoutes.Add(new SwaggerUi3Route("v1.0", "/swagger/v1.0/swagger.json"));
-                config.SwaggerRoutes.Add(new SwaggerUi3Route("v2.0", "/swagger/v2.0/swagger.json"));
-            });
+            app.UseSwaggerUI(
+                options =>
+                {
+                    // build a swagger endpoint for each discovered API version
+                    foreach (var description in provider.ApiVersionDescriptions)
+                    {
+                        options.SwaggerEndpoint($"/swagger/{description.GroupName}/swagger.json", description.GroupName.ToUpperInvariant());
+                    }
+                });
 
+        }
+
+
+        static string XmlCommentsFilePath
+        {
+            get
+            {
+                var basePath = PlatformServices.Default.Application.ApplicationBasePath;
+                var fileName = typeof(Startup).GetTypeInfo().Assembly.GetName().Name + ".xml";
+                return Path.Combine(basePath, fileName);
+            }
         }
     }
 }
